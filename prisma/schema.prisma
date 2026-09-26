@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,104 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
+}
+
+model addresses {
+  id             String   @id(map: "PK_addresses") @default(dbgenerated("newsequentialid()"), map: "DF__addresses__id__2E1BDC42") @db.UniqueIdentifier
+  user_id        String   @db.UniqueIdentifier
+  label          String?  @db.NVarChar(50)
+  recipient_name String   @db.NVarChar(200)
+  line1          String   @db.NVarChar(200)
+  line2          String?  @db.NVarChar(200)
+  city           String   @db.NVarChar(100)
+  state          String   @db.NVarChar(100)
+  postal_code    String   @db.NVarChar(20)
+  country        String   @db.NVarChar(2)
+  is_default     Boolean  @default(false, map: "DF_addresses_is_default")
+  created_at     DateTime @default(dbgenerated("sysutcdatetime()"), map: "DF_addresses_created_at")
+  updated_at     DateTime @default(dbgenerated("sysutcdatetime()"), map: "DF_addresses_updated_at")
+  users          users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_addresses_users")
+
+  @@index([user_id], map: "IX_addresses_user_id")
+}
+
+model categories {
+  id               String       @id(map: "PK_categories") @default(dbgenerated("newsequentialid()"), map: "DF__categories__id__35BCFE0A") @db.UniqueIdentifier
+  name             String       @db.NVarChar(150)
+  slug             String       @unique(map: "UQ_categories_slug") @db.NVarChar(180)
+  description      String?      @db.NVarChar(500)
+  parent_id        String?      @db.UniqueIdentifier
+  created_at       DateTime     @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_created_at")
+  updated_at       DateTime     @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_updated_at")
+  categories       categories?  @relation("categoriesTocategories", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_categories_parent")
+  other_categories categories[] @relation("categoriesTocategories")
+  products         products[]
+
+  @@index([parent_id], map: "IX_categories_parent_id")
+}
+
+model product_images {
+  id               String            @id(map: "PK_product_images") @default(dbgenerated("newsequentialid()"), map: "DF__product_imag__id__4E88ABD4") @db.UniqueIdentifier
+  product_id       String            @db.UniqueIdentifier
+  variant_id       String?           @db.UniqueIdentifier
+  url              String
+  alt_text         String?           @db.NVarChar(255)
+  sort_order       Int               @default(0, map: "DF_product_images_sort_order")
+  created_at       DateTime          @default(dbgenerated("sysutcdatetime()"), map: "DF_product_images_created_at")
+  products         products          @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_product_images_products")
+  product_variants product_variants? @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_product_images_variants")
+
+  @@index([product_id], map: "IX_product_images_product_id")
+  @@index([variant_id], map: "IX_product_images_variant_id")
+}
+
+model product_variants {
+  id               String           @id(map: "PK_product_variants") @default(dbgenerated("newsequentialid()"), map: "DF__product_vari__id__45F365D3") @db.UniqueIdentifier
+  product_id       String           @db.UniqueIdentifier
+  sku              String           @unique(map: "UQ_product_variants_sku") @db.NVarChar(100)
+  name             String           @db.NVarChar(150)
+  price            Decimal          @db.Decimal(18, 2)
+  compare_at_price Decimal?         @db.Decimal(18, 2)
+  attributes       String?          @db.NVarChar(Max)
+  is_active        Boolean          @default(true, map: "DF_product_variants_is_active")
+  created_at       DateTime         @default(dbgenerated("sysutcdatetime()"), map: "DF_product_variants_created_at")
+  updated_at       DateTime         @default(dbgenerated("sysutcdatetime()"), map: "DF_product_variants_updated_at")
+  product_images   product_images[]
+  products         products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_product_variants_products")
+
+  @@index([product_id], map: "IX_product_variants_product_id")
+}
+
+model products {
+  id               String             @id(map: "PK_products") @default(dbgenerated("newsequentialid()"), map: "DF__products__id__3C69FB99") @db.UniqueIdentifier
+  category_id      String             @db.UniqueIdentifier
+  created_by_id    String             @db.UniqueIdentifier
+  name             String             @db.NVarChar(200)
+  slug             String             @unique(map: "UQ_products_slug") @db.NVarChar(220)
+  description      String?            @db.NVarChar(Max)
+  status           String             @default("DRAFT", map: "DF_products_status") @db.NVarChar(20)
+  created_at       DateTime           @default(dbgenerated("sysutcdatetime()"), map: "DF_products_created_at")
+  updated_at       DateTime           @default(dbgenerated("sysutcdatetime()"), map: "DF_products_updated_at")
+  product_images   product_images[]
+  product_variants product_variants[]
+  categories       categories         @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "FK_products_categories")
+  users            users              @relation(fields: [created_by_id], references: [id], onUpdate: NoAction, map: "FK_products_users")
+
+  @@index([category_id], map: "IX_products_category_id")
+  @@index([created_by_id], map: "IX_products_created_by_id")
+  @@index([status], map: "IX_products_status")
+}
+
+model users {
+  id            String      @id(map: "PK_users") @default(dbgenerated("newsequentialid()"), map: "DF__users__id__25869641") @db.UniqueIdentifier
+  email         String      @unique(map: "UQ_users_email") @db.NVarChar(320)
+  password_hash String      @db.NVarChar(255)
+  first_name    String      @db.NVarChar(100)
+  last_name     String      @db.NVarChar(100)
+  role          String      @default("CUSTOMER", map: "DF_users_role") @db.NVarChar(20)
+  status        String      @default("ACTIVE", map: "DF_users_status") @db.NVarChar(20)
+  created_at    DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_users_created_at")
+  updated_at    DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_users_updated_at")
+  addresses     addresses[]
+  products      products[]
 }
