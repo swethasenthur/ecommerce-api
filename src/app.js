@@ -2,6 +2,8 @@ import "dotenv/config";
 
 import express from "express";
 import prisma from "./config/prisma.js";
+import categoryRoutes from "./modules/categories/category.routes.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 const app = express();
 
 app.use(express.json());
@@ -28,4 +30,6 @@ app.get("/health/database", async (req, res) => {
     });
   }
 });
+app.use("/api/v1/categories", categoryRoutes);
+app.use(errorHandler);
 export default app;
