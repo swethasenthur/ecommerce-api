@@ -1,7 +1,7 @@
-require("dotenv").config();
+import "dotenv/config";
 
-const express = require("express");
-
+import express from "express";
+import prisma from "./config/prisma.js";
 const app = express();
 
 app.use(express.json());
@@ -11,5 +11,21 @@ app.get("/", (req, res) => {
     message: "Ecommerce API is running"
   });
 });
+app.get("/health/database", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1 AS result`;
 
-module.exports = app;
+    res.status(200).json({
+      status: "ok",
+      database: "connected"
+    });
+  } catch (error) {
+    console.error("Database health check failed:", error);
+
+    res.status(503).json({
+      status: "error",
+      database: "unavailable"
+    });
+  }
+});
+export default app;
