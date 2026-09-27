@@ -4,8 +4,16 @@ import express from "express";
 import prisma from "./config/prisma.js";
 import categoryRoutes from "./modules/categories/category.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-const app = express();
+import fs from "node:fs";
+import YAML from "yaml";
+import swaggerUi from "swagger-ui-express";
 
+const openapiDocument = YAML.parse(
+  fs.readFileSync("./docs/openapi.yaml", "utf8")
+);
+
+const app = express();
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openapiDocument));
 app.use(express.json());
 
 app.get("/", (req, res) => {
