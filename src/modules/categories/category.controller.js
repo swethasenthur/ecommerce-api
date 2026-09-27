@@ -35,7 +35,6 @@ export async function getCategoryBySlug(req, res, next) {
 
 export async function createCategory(req, res, next) {
   try {
-    console.log("category id:", req.params.id);
     const category = await categoryService.createCategory(req.body);
     res.status(201).json(category);
   } catch (error) {

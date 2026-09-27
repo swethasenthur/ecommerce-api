@@ -17,7 +17,9 @@
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
-    "mssql": "^12.7.2"
+    "mssql": "^12.7.2",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/mssql": "^12.3.0",
