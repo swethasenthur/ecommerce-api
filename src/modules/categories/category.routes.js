@@ -19,6 +19,8 @@ import {
 } from "./category.validation.js";
 
 import { validateRequest } from "../../middleware/validationHandler.js";
+import { authenticate } from "../auth/authenticate.js";
+import { requireRole } from "../auth/authorize.js";
 
 const router = Router();
 
@@ -45,6 +47,8 @@ router.get(
 
 router.post(
   "/",
+  authenticate,
+  requireRole("ADMIN"),
   createCategoryValidation,
   validateRequest,
   createCategory
@@ -52,6 +56,8 @@ router.post(
 
 router.patch(
   "/:id",
+  authenticate,
+  requireRole("ADMIN"),
   updateCategoryValidation,
   validateRequest,
   updateCategory
@@ -59,6 +65,8 @@ router.patch(
 
 router.delete(
   "/:id",
+  authenticate,
+  requireRole("ADMIN"),
   deleteCategoryValidation,
   validateRequest,
   deleteCategory

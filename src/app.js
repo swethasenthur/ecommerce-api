@@ -3,6 +3,7 @@ import "dotenv/config";
 import express from "express";
 import prisma from "./config/prisma.js";
 import categoryRoutes from "./modules/categories/category.routes.js";
+import authRoutes from "./modules/auth/auth.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import fs from "node:fs";
 import YAML from "yaml";
@@ -38,6 +39,7 @@ app.get("/health/database", async (req, res) => {
     });
   }
 });
+app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/categories", categoryRoutes);
 app.use(errorHandler);
 export default app;

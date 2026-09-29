@@ -1,4 +1,4 @@
-import { validationResult } from "express-validator";
+import {matchedData, validationResult } from "express-validator";
 
 export function validateRequest(req, res, next) {
   const errors = validationResult(req);
@@ -13,6 +13,9 @@ export function validateRequest(req, res, next) {
       }))
     });
   }
-
+req.validated = matchedData(req, {
+    locations: ["body", "params", "query"],
+    includeOptionals: true
+  });
   next();
 }
