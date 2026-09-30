@@ -94,15 +94,35 @@ model products {
 }
 
 model users {
-  id            String      @id(map: "PK_users") @default(dbgenerated("newsequentialid()"), map: "DF__users__id__25869641") @db.UniqueIdentifier
-  email         String      @unique(map: "UQ_users_email") @db.NVarChar(320)
-  password_hash String      @db.NVarChar(255)
-  first_name    String      @db.NVarChar(100)
-  last_name     String      @db.NVarChar(100)
-  role          String      @default("CUSTOMER", map: "DF_users_role") @db.NVarChar(20)
-  status        String      @default("ACTIVE", map: "DF_users_status") @db.NVarChar(20)
-  created_at    DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_users_created_at")
-  updated_at    DateTime    @default(dbgenerated("sysutcdatetime()"), map: "DF_users_updated_at")
+  id            String          @id(map: "PK_users") @default(dbgenerated("newsequentialid()"), map: "DF__users__id__25869641") @db.UniqueIdentifier
+  email         String          @unique(map: "UQ_users_email") @db.NVarChar(320)
+  password_hash String          @db.NVarChar(255)
+  first_name    String          @db.NVarChar(100)
+  last_name     String          @db.NVarChar(100)
+  role          String          @default("CUSTOMER", map: "DF_users_role") @db.NVarChar(20)
+  status        String          @default("ACTIVE", map: "DF_users_status") @db.NVarChar(20)
+  created_at    DateTime        @default(dbgenerated("sysutcdatetime()"), map: "DF_users_created_at")
+  updated_at    DateTime        @default(dbgenerated("sysutcdatetime()"), map: "DF_users_updated_at")
   addresses     addresses[]
+  auth_sessions auth_sessions[]
   products      products[]
+}
+
+model auth_sessions {
+  id                  String          @id(map: "PK_auth_sessions") @default(dbgenerated("newsequentialid()"), map: "DF__auth_session__id__5DCAEF64") @db.UniqueIdentifier
+  user_id             String          @db.UniqueIdentifier
+  token_hash          String          @unique(map: "UQ_auth_sessions_token_hash") @db.NVarChar(128)
+  family_id           String          @db.UniqueIdentifier
+  parent_session_id   String?         @db.UniqueIdentifier
+  expires_at          DateTime
+  used_at             DateTime?
+  revoked_at          DateTime?
+  created_at          DateTime        @default(dbgenerated("sysutcdatetime()"), map: "DF_auth_sessions_created_at")
+  auth_sessions       auth_sessions?  @relation("auth_sessionsToauth_sessions", fields: [parent_session_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_auth_sessions_parent")
+  other_auth_sessions auth_sessions[] @relation("auth_sessionsToauth_sessions")
+  users               users           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_auth_sessions_users")
+
+  @@index([expires_at], map: "IX_auth_sessions_expires_at")
+  @@index([family_id], map: "IX_auth_sessions_family_id")
+  @@index([user_id], map: "IX_auth_sessions_user_id")
 }
