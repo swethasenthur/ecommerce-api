@@ -8,7 +8,8 @@ import {
     createAuthSession,
     findAuthSessionByTokenHash,
     markAuthSessionUsed,
-    revokeAuthSessionFamily
+    revokeAuthSessionFamily,
+    revokeAuthSession
 } from "./auth-sessions.repository.js";
 
 import { createAccessToken } from "./token.service.js";
@@ -129,4 +130,22 @@ export async function rotateRefreshToken(rawRefreshToken) {
         tokenType: "Bearer",
         expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m"
     };
+}
+export async function revokeRefreshToken(rawRefreshToken) {
+    if (
+        typeof rawRefreshToken !== "string" ||
+        rawRefreshToken.length === 0
+    ) {
+        return;
+    }
+
+    const tokenHash = hashRefreshToken(rawRefreshToken);
+
+    const session = await findAuthSessionByTokenHash(tokenHash);
+
+    if (!session || session.revoked_at) {
+        return;
+    }
+
+    await revokeAuthSession(session.id);
 }

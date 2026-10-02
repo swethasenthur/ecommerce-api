@@ -63,3 +63,12 @@ export const validateRefresh = [
 
   validateRequest
 ];
+export const validateLogout = [
+  body("refreshToken")
+    .isString()
+    .withMessage("refreshToken must be a string")
+    .notEmpty()
+    .withMessage("refreshToken is required"),
+
+  validateRequest
+];

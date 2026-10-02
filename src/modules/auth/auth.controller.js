@@ -4,7 +4,8 @@ import {
   registerUser
 } from "./auth.service.js";
 import {
-  rotateRefreshToken
+  rotateRefreshToken,
+  revokeRefreshToken
 } from "./refresh-token.service.js";
 export async function register(req, res, next) {
   try {
@@ -56,6 +57,15 @@ export async function refresh(req, res, next) {
     return res.status(200).json({
       data: result
     });
+  } catch (error) {
+    return next(error);
+  }
+}
+export async function logout(req, res, next) {
+  try {
+    await revokeRefreshToken(req.body.refreshToken);
+
+    return res.status(204).send();
   } catch (error) {
     return next(error);
   }
