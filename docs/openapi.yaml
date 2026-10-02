@@ -1,281 +1,634 @@
 openapi: 3.0.3
 
 info:
-  title: Categories API
+  title: Category API
   version: 1.0.0
-  description: Category management API for the application.
+  description: >
+    REST API for managing hierarchical categories and authentication using
+    Node.js, Express, Prisma, and Microsoft SQL Server.
 
 servers:
-  - url: http://localhost:3000/api/v1
+  - url: http://localhost:3000
     description: Local development server
 
 tags:
+  - name: Authentication
+    description: User registration, login, token management, and logout
   - name: Categories
-    description: Category management operations
+    description: Hierarchical category operations
 
 paths:
-  /categories:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Creates a new user account.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: user@example.com
+              password: StrongPassword123
+              name: Example User
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: User already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate a user
+      description: >
+        Validates user credentials and returns an access token and refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: user@example.com
+              password: StrongPassword123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Invalid credentials
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: >
+        Validates the refresh token, revokes the previous token session, and
+        returns a new access token and refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refreshToken: <refresh-token>
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid, expired, revoked, or previously rotated refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Invalid or revoked refresh token
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out the authenticated user
+      description: Revokes the active refresh-token session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+            example:
+              refreshToken: <refresh-token>
+      responses:
+        '204':
+          description: Logout completed successfully
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get the current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Authenticated user was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/categories:
     get:
       tags:
         - Categories
       summary: List categories
-      operationId: listCategories
+      description: Returns a paginated list of categories.
+      security:
+        - bearerAuth: []
       parameters:
-        - name: skip
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: take
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: includeChildren
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
+        - $ref: '#/components/parameters/Skip'
+        - $ref: '#/components/parameters/Take'
+        - $ref: '#/components/parameters/IncludeChildren'
       responses:
-        "200":
-          description: Categories returned successfully
+        '200':
+          description: Categories retrieved successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryListResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     post:
       tags:
         - Categories
       summary: Create a category
-      operationId: createCategory
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCategoryRequest"
-            example:
-              name: Shoes
-              slug: shoes
-              description: Footwear
+              $ref: '#/components/schemas/CreateCategoryRequest'
+            examples:
+              rootCategory:
+                summary: Create a root category
+                value:
+                  name: Shoes
+                  slug: shoes
+                  description: Footwear
+              childCategory:
+                summary: Create a child category
+                value:
+                  name: Running Shoes
+                  slug: running-shoes
+                  description: Shoes for running
+                  parentId: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
       responses:
-        "201":
+        '201':
           description: Category created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "409":
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
           description: Category slug already exists
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Category slug already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
-  /categories/{id}:
-    parameters:
-      - $ref: "#/components/parameters/CategoryId"
-
+  /api/v1/categories/{id}:
     get:
       tags:
         - Categories
       summary: Get a category by ID
-      operationId: getCategoryById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
       responses:
-        "200":
-          description: Category returned successfully
+        '200':
+          description: Category retrieved successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "404":
-          $ref: "#/components/responses/NotFoundError"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Category not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     patch:
       tags:
         - Categories
       summary: Update a category
-      operationId: updateCategory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCategoryRequest"
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+            example:
+              description: Updated description
       responses:
-        "200":
+        '200':
           description: Category updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "404":
-          $ref: "#/components/responses/NotFoundError"
-        "409":
-          description: Update conflicts with an existing category or hierarchy rule
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Category not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Category update conflicts with an existing rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     delete:
       tags:
         - Categories
       summary: Delete a category
-      operationId: deleteCategory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
       responses:
-        "204":
+        '204':
           description: Category deleted successfully
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "404":
-          $ref: "#/components/responses/NotFoundError"
-        "409":
-          description: Category has dependent children or products
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Category not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Category cannot be deleted because dependencies exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                childCategories:
+                  value:
+                    error: Category cannot be deleted because it has child categories
+                productReference:
+                  value:
+                    error: Category cannot be deleted because it is referenced by products
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
-  /categories/slug/{slug}:
-    parameters:
-      - name: slug
-        in: path
-        required: true
-        description: URL-safe category slug
-        schema:
-          type: string
-          minLength: 1
-          maxLength: 180
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-
+  /api/v1/categories/slug/{slug}:
     get:
       tags:
         - Categories
       summary: Get a category by slug
-      operationId: getCategoryBySlug
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: URL-safe category slug
+          schema:
+            type: string
+            pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+            example: electronics
       responses:
-        "200":
-          description: Category returned successfully
+        '200':
+          description: Category retrieved successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryResponse"
-        "404":
-          $ref: "#/components/responses/NotFoundError"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Enter the JWT access token. Swagger UI sends it as:
+        Authorization: Bearer <access-token>
+
   parameters:
     CategoryId:
       name: id
       in: path
       required: true
-      description: SQL Server GUID generated by NEWSEQUENTIALID()
+      description: SQL Server GUID of the category
       schema:
         type: string
-        pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-        example: "8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012"
+        format: uuid
+        pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        example: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
+
+    Skip:
+      name: skip
+      in: query
+      required: false
+      description: Number of records to skip
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+        example: 0
+
+    Take:
+      name: take
+      in: query
+      required: false
+      description: Maximum number of records to return
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+
+    IncludeChildren:
+      name: includeChildren
+      in: query
+      required: false
+      description: Include child categories in the response
+      schema:
+        type: boolean
+        default: false
+        example: true
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: Validation failed
+            details:
+              - location: body
+                field: email
+                message: Email must be valid
+
+    Unauthorized:
+      description: Missing, invalid, expired, or revoked authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid or expired authentication token
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Internal server error
 
   schemas:
-    Category:
+    RegisterRequest:
       type: object
+      additionalProperties: false
       required:
-        - id
-        - name
-        - slug
+        - email
+        - password
       properties:
-        id:
+        email:
           type: string
-          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: StrongPassword123
         name:
           type: string
-          minLength: 1
           maxLength: 150
-        slug:
+          example: Example User
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: StrongPassword123
+
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
           type: string
           minLength: 1
-          maxLength: 180
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-        description:
-          type: string
-          nullable: true
-          maxLength: 500
-        parentId:
-          type: string
-          nullable: true
-        parent:
-          allOf:
-            - $ref: "#/components/schemas/CategorySummary"
-          nullable: true
-        children:
-          type: array
-          items:
-            $ref: "#/components/schemas/CategorySummary"
+          example: <refresh-token>
 
-    CategorySummary:
+    User:
       type: object
-      required:
-        - id
-        - name
-        - slug
       properties:
         id:
           type: string
+          format: uuid
+          example: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
+        email:
+          type: string
+          format: email
+          example: user@example.com
         name:
           type: string
-        slug:
-          type: string
+          nullable: true
+          example: Example User
+
+    RegisterResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required:
+            - accessToken
+            - refreshToken
+            - user
+          properties:
+            accessToken:
+              type: string
+              description: Short-lived JWT access token
+              example: <access-token>
+            refreshToken:
+              type: string
+              description: Refresh token used to obtain a new access token
+              example: <refresh-token>
+            user:
+              $ref: '#/components/schemas/User'
+
+    TokenResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required:
+            - accessToken
+            - refreshToken
+          properties:
+            accessToken:
+              type: string
+              description: New short-lived JWT access token
+              example: <new-access-token>
+            refreshToken:
+              type: string
+              description: New rotated refresh token
+              example: <new-refresh-token>
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
 
     CreateCategoryRequest:
       type: object
+      additionalProperties: false
       required:
         - name
         - slug
-      additionalProperties: false
       properties:
         name:
           type: string
           minLength: 1
           maxLength: 150
+          example: Shoes
         slug:
           type: string
-          minLength: 1
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
           maxLength: 180
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          example: shoes
         description:
           type: string
           nullable: true
           maxLength: 500
+          example: Footwear
         parentId:
           type: string
+          format: uuid
           nullable: true
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          example: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
 
     UpdateCategoryRequest:
       type: object
@@ -286,49 +639,68 @@ components:
           type: string
           minLength: 1
           maxLength: 150
+          example: Updated Shoes
         slug:
           type: string
-          minLength: 1
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
           maxLength: 180
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          example: updated-shoes
         description:
           type: string
           nullable: true
           maxLength: 500
+          example: Updated description
         parentId:
           type: string
+          format: uuid
           nullable: true
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          example: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012
+        name:
+          type: string
+          example: Electronics
+        slug:
+          type: string
+          example: electronics
+        description:
+          type: string
+          nullable: true
+          example: Electronic products
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+        parent:
+          allOf:
+            - $ref: '#/components/schemas/Category'
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
 
     CategoryResponse:
       type: object
-      required:
-        - data
       properties:
         data:
-          $ref: "#/components/schemas/Category"
+          $ref: '#/components/schemas/Category'
 
     CategoryListResponse:
       type: object
-      required:
-        - data
       properties:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/Category"
-
-    ErrorDetail:
-      type: object
-      properties:
-        location:
-          type: string
-          example: params
-        field:
-          type: string
-          example: id
-        message:
-          type: string
-          example: id must be a valid GUID
+            $ref: '#/components/schemas/Category'
 
     ErrorResponse:
       type: object
@@ -337,39 +709,36 @@ components:
       properties:
         error:
           type: string
+          example: Category not found
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+        - details
+      properties:
+        error:
+          type: string
+          example: Validation failed
         details:
           type: array
           items:
-            $ref: "#/components/schemas/ErrorDetail"
+            $ref: '#/components/schemas/ValidationErrorDetail'
 
-  responses:
-    ValidationError:
-      description: Request validation failed
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorResponse"
-          example:
-            error: Validation failed
-            details:
-              - location: params
-                field: id
-                message: id must be a valid GUID
-
-    NotFoundError:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorResponse"
-          example:
-            error: Category not found
-
-    InternalServerError:
-      description: Unexpected server error
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ErrorResponse"
-          example:
-            error: Internal server error
+    ValidationErrorDetail:
+      type: object
+      properties:
+        location:
+          type: string
+          enum:
+            - body
+            - params
+            - query
+            - headers
+          example: body
+        field:
+          type: string
+          example: email
+        message:
+          type: string
+          example: Email must be valid

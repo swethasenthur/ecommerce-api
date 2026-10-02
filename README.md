@@ -4,6 +4,8 @@ A REST API for managing hierarchical categories using Node.js, Express, Prisma, 
 
 The Categories module is the first completed vertical slice of the application. It includes category listing, creation, retrieval, updating, deletion, validation, parent-child relationships, and database constraints.
 
+The Authentication module is also implemented. It provides user registration, login, JWT access tokens, refresh tokens, token rotation, logout, and protected-route authorization.
+
 ---
 
 ## Table of Contents
@@ -19,8 +21,10 @@ The Categories module is the first completed vertical slice of the application. 
 - [Prisma Commands](#prisma-commands)
 - [Running the Application](#running-the-application)
 - [API Documentation](#api-documentation)
+- [Authentication API](#authentication-api)
 - [Categories API](#categories-api)
 - [Category Data Model](#category-data-model)
+- [Authentication Data Model](#authentication-data-model)
 - [Validation Rules](#validation-rules)
 - [Category Relationships](#category-relationships)
 - [Error Handling](#error-handling)
@@ -30,6 +34,7 @@ The Categories module is the first completed vertical slice of the application. 
 - [Design Decisions](#design-decisions)
 - [Future Work](#future-work)
 - [Troubleshooting](#troubleshooting)
+- [Reference Documentation](#reference-documentation)
 
 ---
 
@@ -43,26 +48,44 @@ The Categories module is the first completed vertical slice of the application. 
 - Category list endpoint.
 - Category creation endpoint.
 - Category retrieval endpoint.
+- Category update endpoint.
+- Category deletion endpoint.
 - Category validation.
 - SQL Server GUID handling.
 - Category parent-child relationship design.
 - Swagger/OpenAPI documentation setup.
 - Project setup and design documentation.
+- User registration endpoint.
+- User login endpoint.
+- Password hashing.
+- Password validation.
+- JWT access-token generation.
+- Refresh-token generation.
+- Refresh-token rotation.
+- Refresh-token revocation.
+- Logout functionality.
+- Protected route authorization.
+- Authentication middleware.
+- Authentication validation.
+- Authentication error handling.
+- User-to-authentication-session relationship design.
 
-### Current phase
+### Current Phase
 
 The project is proceeding through the following phases:
 
-1. Option A: Automated testing.
-2. Option B: API documentation.
-3. Option C: Authentication and authorization.
-4. Option D: Product module.
+1. **Option A: Automated testing.**
+2. **Option B: API documentation.**
+3. **Option C: Authentication and authorization — implemented.**
+4. **Option D: Product module.**
 
-Option B documentation is being maintained through:
+Option B documentation is maintained through:
 
 ```text
 docs/openapi.yaml
 ```
+
+Option C authentication and authorization is implemented through the authentication routes, controllers, services, repositories, validators, middleware, and session storage.
 
 ---
 
@@ -73,12 +96,16 @@ docs/openapi.yaml
 - Prisma ORM.
 - Microsoft SQL Server.
 - `express-validator`.
+- JWT.
+- Password-hashing library.
 - Jest.
 - Supertest.
 - Swagger UI Express.
 - OpenAPI.
 
 Express-validator validation chains can be used as Express middleware and support validators, sanitizers, and modifiers. [web:322][web:412]
+
+Prisma supports SQL Server through a SQL Server datasource and connection URL configured through environment variables. [web:715][web:716]
 
 ---
 
@@ -114,7 +141,7 @@ your-project/
 └── README.md
 ```
 
-### Folder responsibilities
+### Folder Responsibilities
 
 #### `src/`
 
@@ -122,7 +149,7 @@ Contains application runtime code.
 
 #### `src/routes/`
 
-Defines HTTP routes and connects them to validation middleware and controllers.
+Defines HTTP routes and connects them to validation middleware, authentication middleware, and controllers.
 
 #### `src/controllers/`
 
@@ -130,7 +157,7 @@ Handles HTTP requests and responses.
 
 #### `src/services/`
 
-Contains business rules and application logic.
+Contains business rules and application logic, including authentication, token handling, category rules, and product rules.
 
 #### `src/repositories/`
 
@@ -142,7 +169,13 @@ Contains request validation rules.
 
 #### `src/middleware/`
 
-Contains shared middleware such as validation-result handling and error handling.
+Contains shared middleware such as:
+
+- Authentication middleware.
+- Authorization middleware.
+- Validation-result handling.
+- Error handling.
+- Request logging.
 
 #### `prisma/`
 
@@ -167,6 +200,10 @@ HTTP request
     ↓
 Route
     ↓
+Authentication middleware
+    ↓
+Authorization middleware
+    ↓
 Validation middleware
     ↓
 Controller
@@ -180,29 +217,63 @@ Prisma Client
 Microsoft SQL Server
 ```
 
+Authentication middleware is applied only to protected routes. Public routes such as registration and login do not require an access token.
+
 ### Route
 
 Routes define the HTTP method and URL.
 
-Example:
+Example public route:
 
 ```js
 router.post(
-  "/",
-  validateCreateCategory,
-  categoryController.createCategory
+  "/register",
+  validateRegister,
+  authController.register
 );
 ```
 
-### Validation middleware
+Example protected route:
 
-Validation middleware validates route parameters, query parameters, and request bodies before the controller runs.
+```js
+router.get(
+  "/me",
+  authenticate,
+  authController.getCurrentUser
+);
+```
+
+### Authentication Middleware
+
+Authentication middleware:
+
+1. Reads the `Authorization` header.
+2. Extracts the bearer token.
+3. Verifies the JWT.
+4. Loads or validates the authenticated user.
+5. Adds authenticated-user information to the request.
+6. Rejects invalid or expired tokens.
+
+Protected requests use:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+Swagger/OpenAPI represents bearer authentication using an HTTP bearer security scheme and applies it to protected operations. [web:707][web:708]
+
+### Authorization Middleware
+
+Authorization middleware checks whether the authenticated user has permission to perform an operation.
+
+The current implementation supports authenticated-route protection. Role-based authorization is planned future work.
 
 ### Controller
 
 The controller handles HTTP-specific work:
 
 - Reads parameters and request body.
+- Reads the authenticated user from the request.
 - Calls the service.
 - Sends the HTTP response.
 - Passes errors to the error middleware.
@@ -211,11 +282,18 @@ The controller handles HTTP-specific work:
 
 The service contains business rules:
 
+- Password hashing.
+- Password comparison.
+- Access-token creation.
+- Refresh-token creation.
+- Refresh-token rotation.
+- Refresh-token revocation.
+- Duplicate user checks.
 - Duplicate slug checks.
 - Parent existence checks.
 - Self-parent checks.
 - Delete dependency checks.
-- Hierarchy rules.
+- Category hierarchy rules.
 
 ### Repository
 
@@ -258,10 +336,10 @@ From the project root, run:
 npm.cmd install
 ```
 
-If the required packages have not yet been installed, use:
+If the required runtime packages have not yet been installed, use:
 
 ```powershell
-npm.cmd install express @prisma/client express-validator swagger-ui-express yaml
+npm.cmd install express @prisma/client express-validator jsonwebtoken bcrypt swagger-ui-express yaml
 ```
 
 Install development dependencies:
@@ -269,6 +347,8 @@ Install development dependencies:
 ```powershell
 npm.cmd install --save-dev prisma jest supertest nodemon
 ```
+
+If a different password-hashing package is used by the implementation, install and document that package instead of `bcrypt`.
 
 ---
 
@@ -286,9 +366,14 @@ Example:
 DATABASE_URL="sqlserver://localhost:1433;database=your_database;user=your_user;password=your_password;encrypt=true;trustServerCertificate=true"
 PORT=3000
 NODE_ENV=development
+
+JWT_ACCESS_SECRET="replace-with-a-long-random-access-secret"
+JWT_REFRESH_SECRET="replace-with-a-long-random-refresh-secret"
+JWT_ACCESS_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
 ```
 
-Replace the values with your actual SQL Server configuration.
+Replace the values with your actual configuration.
 
 Do not commit `.env`.
 
@@ -315,9 +400,25 @@ Example contents:
 DATABASE_URL="sqlserver://HOST:1433;database=DATABASE;user=USER;password=PASSWORD;encrypt=true;trustServerCertificate=true"
 PORT=3000
 NODE_ENV=development
+
+JWT_ACCESS_SECRET="replace-with-a-random-secret"
+JWT_REFRESH_SECRET="replace-with-a-random-secret"
+JWT_ACCESS_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
 ```
 
-Never place real passwords in `.env.example`.
+Never place real passwords, JWT secrets, private keys, or production credentials in `.env.example`.
+
+### Authentication Environment Variables
+
+| Variable | Description |
+|---|---|
+| `JWT_ACCESS_SECRET` | Secret used to sign access tokens |
+| `JWT_REFRESH_SECRET` | Secret used to sign refresh tokens |
+| `JWT_ACCESS_EXPIRES_IN` | Access-token lifetime |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh-token lifetime |
+
+Use separate secrets for access tokens and refresh tokens.
 
 ---
 
@@ -336,12 +437,26 @@ The database connection is loaded from `DATABASE_URL`.
 
 Prisma’s SQL Server setup uses a SQL Server connection URL configured through environment variables. [web:451][web:454]
 
-### Existing database
+### Existing Database
 
 This project connects to an existing SQL Server database. The existing database tables and columns are preserved.
 
+### Authentication Tables
 
-### Important introspection rule
+The authentication module requires user and session data.
+
+The expected logical tables are:
+
+```text
+users
+auth_sessions
+```
+
+The `users` table stores user identity and password information.
+
+The `auth_sessions` table stores refresh-token session information and its relationship to the user.
+
+### Important Introspection Rule
 
 Do not run this command casually after manually adjusting Prisma model or field names:
 
@@ -469,7 +584,7 @@ When the server is running, open:
 http://localhost:3000/api-docs
 ```
 
-### Swagger dependencies
+### Swagger Dependencies
 
 Install:
 
@@ -477,7 +592,7 @@ Install:
 npm.cmd install swagger-ui-express yaml
 ```
 
-### Swagger setup
+### Swagger Setup
 
 The OpenAPI file is loaded in the Express application:
 
@@ -508,12 +623,241 @@ Swagger UI Express serves the OpenAPI document through an Express route. [web:43
 
 ---
 
+## Authentication API
+
+The authentication API base path is:
+
+```text
+/api/v1/auth
+```
+
+### Authentication Endpoints
+
+| Method | Endpoint | Description | Authentication |
+|---|---|---|---|
+| POST | `/api/v1/auth/register` | Register a new user | Not required |
+| POST | `/api/v1/auth/login` | Authenticate a user and issue tokens | Not required |
+| POST | `/api/v1/auth/refresh` | Rotate the refresh token and issue a new access token | Refresh token required |
+| POST | `/api/v1/auth/logout` | Revoke the refresh-token session | Access token required |
+| GET | `/api/v1/auth/me` | Retrieve the authenticated user | Access token required |
+
+### Register User
+
+Request:
+
+```http
+POST /api/v1/auth/register
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPassword123",
+  "name": "Example User"
+}
+```
+
+Expected status:
+
+```text
+201 Created
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "id": "8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012",
+    "email": "user@example.com",
+    "name": "Example User"
+  }
+}
+```
+
+The registration response must not expose:
+
+- The password.
+- The password hash.
+- JWT secrets.
+- Refresh-token hashes.
+- Internal database details.
+
+### Login
+
+Request:
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPassword123"
+}
+```
+
+Expected status:
+
+```text
+200 OK
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "accessToken": "<access-token>",
+    "refreshToken": "<refresh-token>",
+    "user": {
+      "id": "8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012",
+      "email": "user@example.com",
+      "name": "Example User"
+    }
+  }
+}
+```
+
+### Refresh Access Token
+
+Request:
+
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Expected status:
+
+```text
+200 OK
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "accessToken": "<new-access-token>",
+    "refreshToken": "<new-refresh-token>"
+  }
+}
+```
+
+A successful refresh operation rotates the refresh token. The previous refresh token must no longer be accepted after rotation.
+
+### Logout
+
+Request:
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <access-token>
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "refreshToken": "<refresh-token>"
+}
+```
+
+Expected status:
+
+```text
+204 No Content
+```
+
+Logout revokes the refresh-token session and prevents the refresh token from being used again.
+
+### Get Current User
+
+Request:
+
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <access-token>
+```
+
+Expected status:
+
+```text
+200 OK
+```
+
+Example response:
+
+```json
+{
+  "data": {
+    "id": "8f6c2e3a-4c1d-4b7a-9f25-2a6d7e8c9012",
+    "email": "user@example.com",
+    "name": "Example User"
+  }
+}
+```
+
+### Access Token Usage
+
+Include the access token in the `Authorization` header:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+The access token is used for protected endpoints.
+
+The refresh token must not be sent as an access token. It is used only with the refresh operation and logout flow.
+
+### Authentication Status Codes
+
+| Status code | Meaning |
+|---|---|
+| `200` | Request completed successfully |
+| `201` | User registered successfully |
+| `204` | Logout completed successfully |
+| `400` | Invalid request or validation error |
+| `401` | Missing, invalid, expired, or revoked token |
+| `403` | Authenticated user is not authorized |
+| `409` | User already exists |
+| `500` | Internal server error |
+
+---
+
 ## Categories API
 
 The category API base path is:
 
 ```text
 /api/v1/categories
+```
+
+### Authentication Requirement
+
+Category route protection depends on the configured route policy.
+
+When category routes are protected, include:
+
+```http
+Authorization: Bearer <access-token>
 ```
 
 ### Endpoints
@@ -576,6 +920,7 @@ Request:
 ```http
 POST /api/v1/categories
 Content-Type: application/json
+Authorization: Bearer <access-token>
 ```
 
 Request body:
@@ -608,7 +953,7 @@ Expected response:
 }
 ```
 
-### Create a child category
+### Create a Child Category
 
 ```json
 {
@@ -619,7 +964,7 @@ Expected response:
 }
 ```
 
-### Create behavior
+### Create Behavior
 
 The POST endpoint must use Prisma `create()`:
 
@@ -650,7 +995,7 @@ await prisma.categories.upsert({
 
 Using `upsert()` would update the existing category when the submitted slug already exists.
 
-### Duplicate slug
+### Duplicate Slug
 
 If `electronics` already exists, this request:
 
@@ -691,18 +1036,6 @@ The `id` must be a valid SQL Server GUID shape:
 ```text
 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
-
-The value must contain:
-
-- 8 hexadecimal characters.
-- A hyphen.
-- 4 hexadecimal characters.
-- A hyphen.
-- 4 hexadecimal characters.
-- A hyphen.
-- 4 hexadecimal characters.
-- A hyphen.
-- 12 hexadecimal characters.
 
 Validation pattern:
 
@@ -755,6 +1088,7 @@ Request:
 ```http
 PATCH /api/v1/categories/:id
 Content-Type: application/json
+Authorization: Bearer <access-token>
 ```
 
 Example:
@@ -796,6 +1130,7 @@ Request:
 
 ```http
 DELETE /api/v1/categories/:id
+Authorization: Bearer <access-token>
 ```
 
 Example:
@@ -850,27 +1185,119 @@ parent
 children
 ```
 
-### Example Prisma model
+### Example Prisma Model
 
 ```prisma
 model categories {
-  id          String      @id(map: "PK_categories") @default(dbgenerated("newsequentialid()"), map: "DF__categories__id__35BCFE0A") @db.UniqueIdentifier
-  name        String      @db.NVarChar(150)
-  slug        String      @unique @db.NVarChar(180)
-  description String?     @db.NVarChar(500)
-  parentId    String?     @map("parent_id") @db.UniqueIdentifier
+  id          String     @id(map: "PK_categories") @default(dbgenerated("newsequentialid()"), map: "DF__categories__id__35BCFE0A") @db.UniqueIdentifier
+  name        String     @db.NVarChar(150)
+  slug        String     @unique @db.NVarChar(180)
+  description String?    @db.NVarChar(500)
+  parentId    String?    @map("parent_id") @db.UniqueIdentifier
 
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children Category[] @relation("CategoryTree")
-
+  parent   categories?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children categories[] @relation("CategoryTree")
 }
+```
+
+Use the exact model and relation names generated by the current Prisma schema. If the generated client uses `Category` instead of `categories`, update repository examples to match the generated client.
+
+---
+
+## Authentication Data Model
+
+The authentication module uses a user entity and refresh-token session storage.
+
+### User Data
+
+The user record contains information such as:
+
+```text
+id
+email
+passwordHash
+name
+createdAt
+updatedAt
+```
+
+The password must be stored as a secure hash. Plain-text passwords must never be stored or returned in API responses.
+
+### Authentication Session Data
+
+The authentication session record contains information such as:
+
+```text
+id
+userId
+refreshTokenHash
+expiresAt
+revokedAt
+createdAt
+updatedAt
+```
+
+The refresh token itself should not be stored in plain text when the implementation uses hashed refresh-token storage.
+
+### User-to-Session Relationship
+
+A user can have multiple authentication sessions:
+
+```text
+users
+  1
+  |
+  |--- many auth_sessions
+```
+
+The relationship is established through:
+
+```text
+auth_sessions.user_id
+    REFERENCES users.id
 ```
 
 ---
 
 ## Validation Rules
 
-### Create validation
+### Authentication Registration Validation
+
+- `email` is required.
+- `email` must be a valid email address.
+- `email` must be normalized consistently.
+- `password` is required.
+- `password` must meet the configured minimum length.
+- `name` is optional unless required by the business rules.
+- Unknown fields are rejected.
+- Duplicate email addresses return `409 Conflict`.
+
+### Authentication Login Validation
+
+- `email` is required.
+- `email` must be a valid email address.
+- `password` is required.
+- Invalid credentials return `401 Unauthorized`.
+- The response must not reveal whether the email or password was incorrect.
+
+### Refresh Token Validation
+
+- `refreshToken` is required.
+- The token must have a valid format.
+- The token must not be expired.
+- The token must not be revoked.
+- A rotated token must not be accepted again.
+- Invalid or reused refresh tokens return `401 Unauthorized`.
+
+### Protected Route Validation
+
+- The `Authorization` header is required.
+- The header must use the bearer format.
+- The access token must be valid.
+- The access token must not be expired.
+- The authenticated user must exist and be active.
+
+### Create Validation
 
 - `name` is required.
 - `name` must be a string.
@@ -886,14 +1313,14 @@ model categories {
 - The parent category must exist when `parentId` is provided.
 - A category cannot be its own parent.
 
-### Read validation
+### Read Validation
 
 - `id` is required.
 - `id` must be a valid GUID.
 - A malformed ID returns `400`.
 - A valid but nonexistent ID returns `404`.
 
-### Update validation
+### Update Validation
 
 - `id` must be a valid GUID.
 - At least one permitted field must be supplied.
@@ -903,7 +1330,7 @@ model categories {
 - A category cannot be its own parent.
 - Cyclic parent relationships are rejected.
 
-### Delete validation
+### Delete Validation
 
 - `id` must be a valid GUID.
 - A missing category returns `404`.
@@ -962,7 +1389,7 @@ If the generated Prisma Client does not expose `parent`, then the schema does no
 
 ## Database Constraints
 
-### Primary key
+### Primary Key
 
 ```text
 categories.id
@@ -970,7 +1397,7 @@ categories.id
 
 Uses SQL Server `uniqueidentifier`.
 
-### Unique slug
+### Unique Slug
 
 ```text
 categories.slug
@@ -978,7 +1405,7 @@ categories.slug
 
 The slug must be unique.
 
-### Parent foreign key
+### Parent Foreign Key
 
 ```text
 categories.parent_id
@@ -990,7 +1417,7 @@ References:
 categories.id
 ```
 
-### Delete behavior
+### Delete Behavior
 
 The category hierarchy uses restrictive delete behavior:
 
@@ -1001,11 +1428,21 @@ onUpdate: NoAction
 
 The service checks dependencies before deletion.
 
+### Authentication Constraints
+
+The authentication database should enforce:
+
+- Unique user email.
+- Valid user-to-session foreign key.
+- Refresh-session expiration tracking.
+- Refresh-session revocation tracking.
+- Appropriate indexes for email and session lookup.
+
 ---
 
 ## Error Handling
 
-### Validation error
+### Validation Error
 
 Status:
 
@@ -1028,7 +1465,41 @@ Example:
 }
 ```
 
-### Not found
+### Authentication Error
+
+Status:
+
+```text
+401 Unauthorized
+```
+
+Example:
+
+```json
+{
+  "error": "Invalid or expired authentication token"
+}
+```
+
+Authentication errors must not expose sensitive token-validation details.
+
+### Authorization Error
+
+Status:
+
+```text
+403 Forbidden
+```
+
+Example:
+
+```json
+{
+  "error": "You are not authorized to perform this action"
+}
+```
+
+### Not Found
 
 Status:
 
@@ -1062,11 +1533,17 @@ Examples:
 
 ```json
 {
+  "error": "User already exists"
+}
+```
+
+```json
+{
   "error": "Category cannot be deleted because it has child categories"
 }
 ```
 
-### Internal server error
+### Internal Server Error
 
 Status:
 
@@ -1081,6 +1558,10 @@ Production responses must not expose:
 - SQL statements.
 - Internal stack traces.
 - File system paths.
+- Password hashes.
+- JWT secrets.
+- Refresh-token values.
+- Sensitive token-validation details.
 
 ---
 
@@ -1088,20 +1569,26 @@ Production responses must not expose:
 
 Automated testing is Option A.
 
-### Test structure
+Authentication testing is included in the automated-testing work.
+
+### Test Structure
 
 ```text
 tests/
 ├── unit/
 │   ├── category.validation.test.js
-│   └── category.service.test.js
+│   ├── category.service.test.js
+│   ├── auth.validation.test.js
+│   └── auth.service.test.js
 ├── integration/
-│   └── category.repository.test.js
+│   ├── category.repository.test.js
+│   └── auth.repository.test.js
 └── api/
-    └── category.routes.test.js
+    ├── category.routes.test.js
+    └── auth.routes.test.js
 ```
 
-### Test dependencies
+### Test Dependencies
 
 Install:
 
@@ -1109,7 +1596,7 @@ Install:
 npm.cmd install --save-dev jest supertest
 ```
 
-### Test scripts
+### Test Scripts
 
 Add to `package.json`:
 
@@ -1123,7 +1610,44 @@ Add to `package.json`:
 }
 ```
 
-### Unit tests
+### Authentication Unit Tests
+
+Unit tests should cover:
+
+- Registration validation.
+- Invalid email validation.
+- Weak-password validation.
+- Duplicate-user behavior.
+- Password hashing.
+- Password comparison.
+- Access-token creation.
+- Refresh-token creation.
+- Expired-token behavior.
+- Invalid-token behavior.
+- Refresh-token rotation.
+- Refresh-token revocation.
+- Logout behavior.
+- Authentication middleware behavior.
+- Authorization middleware behavior.
+
+### Authentication HTTP Tests
+
+HTTP tests should cover:
+
+- Registering a user.
+- Rejecting duplicate registration.
+- Logging in with valid credentials.
+- Rejecting invalid credentials.
+- Refreshing tokens.
+- Rejecting an expired refresh token.
+- Rejecting a revoked refresh token.
+- Rejecting reuse of a rotated refresh token.
+- Accessing a protected endpoint with a valid access token.
+- Rejecting a protected endpoint without a token.
+- Rejecting a protected endpoint with an invalid token.
+- Logging out and revoking the session.
+
+### Category Unit Tests
 
 Unit tests should cover:
 
@@ -1139,7 +1663,7 @@ Unit tests should cover:
 - Category-not-found behavior.
 - Delete dependency behavior.
 
-### Integration tests
+### Integration Tests
 
 Integration tests should use a dedicated test database.
 
@@ -1155,8 +1679,11 @@ Integration tests should cover:
 - Deleting a category.
 - Duplicate slug database behavior.
 - Parent-child relation behavior.
+- Creating a user.
+- Creating an authentication session.
+- Revoking an authentication session.
 
-### HTTP tests
+### HTTP Tests
 
 HTTP tests should use Supertest against the Express app.
 
@@ -1182,7 +1709,7 @@ app.listen(port, () => {
 
 This allows tests to import the app without opening a real network port.
 
-### Run tests
+### Run Tests
 
 ```powershell
 npm.cmd test
@@ -1213,8 +1740,11 @@ node_modules/
 coverage/
 database backups
 database passwords
+JWT secrets
 private keys
 production logs
+password hashes
+refresh tokens
 ```
 
 Commit:
@@ -1227,6 +1757,7 @@ tests/
 README.md
 package.json
 package-lock.json
+.env.example
 ```
 
 Before committing:
@@ -1238,11 +1769,28 @@ npx.cmd prisma validate
 npm.cmd test
 ```
 
+### Authentication Security Rules
+
+- Store passwords only as secure hashes.
+- Never log passwords.
+- Never return password hashes in API responses.
+- Use separate secrets for access and refresh tokens.
+- Keep token secrets outside source control.
+- Use HTTPS in non-local environments.
+- Validate token expiration.
+- Revoke refresh sessions during logout.
+- Rotate refresh tokens after successful refresh.
+- Reject previously rotated refresh tokens.
+- Avoid exposing whether an email exists during failed login.
+- Use short-lived access tokens.
+- Apply appropriate rate limiting to registration and login endpoints.
+- Do not place access tokens or refresh tokens in logs.
+
 ---
 
 ## Development Workflow
 
-### Start the project
+### Start the Project
 
 ```powershell
 npm.cmd install
@@ -1251,32 +1799,51 @@ npx.cmd prisma generate
 npm.cmd run dev
 ```
 
-### Check categories
+### Register a User
+
+```text
+POST http://localhost:3000/api/v1/auth/register
+```
+
+### Log In
+
+```text
+POST http://localhost:3000/api/v1/auth/login
+```
+
+### Check the Current User
+
+```text
+GET http://localhost:3000/api/v1/auth/me
+Authorization: Bearer <access-token>
+```
+
+### Check Categories
 
 ```text
 GET http://localhost:3000/api/v1/categories
 ```
 
-### Open API documentation
+### Open API Documentation
 
 ```text
 http://localhost:3000/api-docs
 ```
 
-### Run tests
+### Run Tests
 
 ```powershell
 npm.cmd test
 ```
 
-### Format and validate Prisma
+### Format and Validate Prisma
 
 ```powershell
 npx.cmd prisma format
 npx.cmd prisma validate
 ```
 
-### Restart after schema changes
+### Restart After Schema Changes
 
 ```powershell
 Ctrl + C
@@ -1288,9 +1855,9 @@ npm.cmd run dev
 
 ## Design Decisions
 
-### Prisma naming
+### Prisma Naming
 
-Prisma model names use singular PascalCase:
+Prisma model names use singular PascalCase where supported:
 
 ```text
 Category
@@ -1300,7 +1867,9 @@ Product
 
 Database table names remain mapped with `@@map`.
 
-### Field naming
+Use the actual names generated by the current Prisma schema in repository code.
+
+### Field Naming
 
 Application-facing fields use camelCase where practical:
 
@@ -1308,6 +1877,8 @@ Application-facing fields use camelCase where practical:
 parentId
 createdAt
 updatedAt
+passwordHash
+refreshTokenHash
 ```
 
 Legacy SQL Server columns are mapped using `@map`.
@@ -1322,7 +1893,7 @@ NEWSEQUENTIALID()
 
 The API validates their GUID structure rather than requiring strict UUID version 4 bits.
 
-### Category hierarchy
+### Category Hierarchy
 
 The category hierarchy uses a Prisma self-relation named:
 
@@ -1330,7 +1901,7 @@ The category hierarchy uses a Prisma self-relation named:
 CategoryTree
 ```
 
-### POST behavior
+### POST Behavior
 
 POST creates a new category only.
 
@@ -1340,11 +1911,31 @@ It does not use `upsert()`.
 
 Duplicate slugs return `409 Conflict`.
 
-### Delete behavior
+### Authentication Behavior
+
+Registration creates a user after validating the request and hashing the password.
+
+Login verifies the user credentials and returns an access token and refresh token.
+
+Refresh-token requests rotate the refresh token and invalidate the previous token.
+
+Logout revokes the active refresh-token session.
+
+Protected routes require a valid access token.
+
+### Token Separation
+
+Access tokens and refresh tokens use separate signing secrets and separate expiration settings.
+
+Access tokens are used for API authorization.
+
+Refresh tokens are used to obtain replacement access tokens.
+
+### Delete Behavior
 
 Categories with dependent children or products cannot be deleted.
 
-### API versioning
+### API Versioning
 
 The API uses:
 
@@ -1358,36 +1949,55 @@ Future breaking changes should use a new API version.
 
 ## Future Work
 
-### Option A: Automated testing
+### Option A: Automated Testing
 
-- Unit tests.
-- Repository integration tests.
-- HTTP tests.
-- Coverage reporting.
-- CI test execution.
+- Complete unit tests.
+- Complete repository integration tests.
+- Complete HTTP tests.
+- Add authentication test coverage.
+- Add category authorization test coverage.
+- Add coverage reporting.
+- Add CI test execution.
+- Add test database provisioning.
+- Add test data factories.
+- Add database cleanup utilities.
 
-### Option B: API documentation
+### Option B: API Documentation
 
-- OpenAPI specification.
-- Swagger UI.
-- Request examples.
-- Response examples.
-- Error documentation.
+- Keep the OpenAPI specification synchronized with implemented routes.
+- Add authentication request examples.
+- Add authentication response examples.
+- Add bearer-authentication security definitions.
+- Add protected-route security declarations.
+- Add refresh-token error documentation.
+- Add category authorization documentation.
+- Add generated API documentation checks in CI.
 
-### Option C: Authentication and authorization
+### Option C: Authentication and Authorization
 
-Planned features include:
+The core authentication and authorization module is implemented.
 
-- User registration.
-- Password hashing.
-- Login.
-- Access tokens.
-- Refresh tokens.
-- Authentication middleware.
+Future enhancements include:
+
 - Role-based authorization.
 - Admin-only category operations.
+- User roles and permissions.
+- Permission-based middleware.
+- Account activation.
+- Email verification.
+- Password reset.
+- Password-change endpoint.
+- Account lockout after repeated failed logins.
+- Login rate limiting.
+- Device and session management.
+- Logout from all sessions.
+- Audit logging.
+- Multi-factor authentication.
+- OAuth or external identity-provider integration.
+- Token reuse detection alerts.
+- Security-event monitoring.
 
-### Option D: Product module
+### Option D: Product Module
 
 Planned features include:
 
@@ -1398,6 +2008,11 @@ Planned features include:
 - Product CRUD.
 - Product validation.
 - Product search and filtering.
+- Product pagination.
+- Product availability.
+- Product authorization.
+- Product-related automated tests.
+- Product OpenAPI documentation.
 
 ---
 
@@ -1433,9 +2048,9 @@ where: {
 }
 ```
 
-### `Unknown field parent for include`
+### `Unknown Field parent for Include`
 
-The `Category` model must define:
+The category model must define:
 
 ```prisma
 parent Category?
@@ -1470,7 +2085,7 @@ const guidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 ```
 
-### POST updates an existing category
+### POST Updates an Existing Category
 
 Check that the repository uses:
 
@@ -1486,7 +2101,67 @@ prisma.category.upsert()
 
 POST must create a new row or return `409 Conflict` for a duplicate slug.
 
-### Prisma Client is outdated
+### Invalid or Expired Authentication Token
+
+Check that:
+
+- The `Authorization` header is present.
+- The header uses the `Bearer <token>` format.
+- The access-token secret matches the configured secret.
+- The access token has not expired.
+- The token was generated by the expected application.
+- The server has been restarted after environment changes.
+
+Correct format:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+### Refresh Token Rejected
+
+Check that:
+
+- The refresh token is present.
+- The refresh token has not expired.
+- The refresh-token session has not been revoked.
+- The token has not already been rotated.
+- The refresh-token secret is correct.
+- The session belongs to an existing user.
+
+A previously rotated refresh token should be rejected.
+
+### Login Always Fails
+
+Check that:
+
+- The submitted email is normalized consistently.
+- The user exists.
+- The password hash was generated using the configured password-hashing library.
+- The login code compares the submitted password with the stored hash.
+- The password is not being compared directly with the hash.
+- The server is using the correct database.
+
+### Authentication Routes Return 404
+
+Check that:
+
+- The authentication router is mounted in `src/app.js`.
+- The route prefix matches the README and OpenAPI document.
+- The request uses `/api/v1/auth`.
+- The server has been restarted after route changes.
+
+Expected route examples:
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+GET /api/v1/auth/me
+```
+
+### Prisma Client Is Outdated
 
 Run:
 
@@ -1501,7 +2176,7 @@ Ctrl + C
 npm.cmd run dev
 ```
 
-### Swagger UI cannot find the OpenAPI file
+### Swagger UI Cannot Find the OpenAPI File
 
 Confirm that the file is located at:
 
@@ -1515,24 +2190,55 @@ If loading from `src/app.js`, the path should normally be:
 path.join(__dirname, "../docs/openapi.yaml")
 ```
 
+### Swagger Does Not Show Authentication
+
+Confirm that `docs/openapi.yaml` contains a bearer security scheme:
+
+```yaml
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+```
+
+Protected operations must include:
+
+```yaml
+security:
+  - bearerAuth: []
+```
+
+Bearer authentication must be applied to each protected operation or globally where appropriate. [web:707][web:708]
+
 ---
 
 ## Reference Documentation
 
 - Prisma SQL Server documentation:  
-  https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/sql-server
+  [https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/sql-server](https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/sql-server)
+
+- Prisma existing SQL Server project documentation:  
+  [https://www.prisma.io/docs/v7/prisma-orm/add-to-existing-project/sql-server](https://www.prisma.io/docs/v7/prisma-orm/add-to-existing-project/sql-server)
 
 - Prisma database mapping documentation:  
-  https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/database-mapping
+  [https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/database-mapping](https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/database-mapping)
 
 - Prisma relations documentation:  
-  https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/relations
+  [https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/relations](https://www.prisma.io/docs/orm/v7/prisma-schema/data-model/relations)
 
 - Express-validator documentation:  
-  https://express-validator.github.io/docs/
+  [https://express-validator.github.io/docs/](https://express-validator.github.io/docs/)
 
 - OpenAPI specification:  
-  https://spec.openapis.org/oas/latest.html
+  [https://spec.openapis.org/oas/latest.html](https://spec.openapis.org/oas/latest.html)
+
+- Swagger bearer authentication:  
+  [https://swagger.io/docs/specification/v3_0/authentication/bearer-authentication/](https://swagger.io/docs/specification/v3_0/authentication/bearer-authentication/)
+
+- Swagger authentication:  
+  [https://swagger.io/docs/specification/v3_0/authentication/](https://swagger.io/docs/specification/v3_0/authentication/)
 
 - Swagger UI Express:  
-  https://www.npmjs.com/package/swagger-ui-express
+  [https://www.npmjs.com/package/swagger-ui-express](https://www.npmjs.com/package/swagger-ui-express)
