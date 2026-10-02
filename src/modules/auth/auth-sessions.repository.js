@@ -5,9 +5,10 @@ export async function createAuthSession({
     tokenHash,
     familyId,
     parentSessionId = null,
-    expiresAt
+    expiresAt,
+    client = prisma
 }) {
-    return prisma.auth_sessions.create({
+    return client.auth_sessions.create({
         data: {
             user_id: userId,
             token_hash: tokenHash,
@@ -22,15 +23,20 @@ export async function findAuthSessionByTokenHash(tokenHash) {
     return prisma.auth_sessions.findUnique({
         where: {
             token_hash: tokenHash
+        },
+        include: {
+            users: true
         }
+
     });
 }
 
 export async function markAuthSessionUsed(
     sessionId,
-    usedAt = new Date()
+    usedAt = new Date(),
+    client = prisma
 ) {
-    return prisma.auth_sessions.update({
+    return client.auth_sessions.update({
         where: {
             id: sessionId
         },

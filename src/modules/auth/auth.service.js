@@ -10,6 +10,9 @@ import {
 import {
   createAccessToken
 } from "./token.service.js";
+import {
+  createRefreshSession
+} from "./refresh-token.service.js";
 
 function toPublicUser(user) {
   return {
@@ -105,10 +108,15 @@ export async function loginUser({
   }
 
   const accessToken = createAccessToken(user);
-
+  const {
+    refreshToken
+  } = await createRefreshSession({
+    userId: user.id
+  });
   return {
     user: toPublicUser(user),
     accessToken,
+    refreshToken,
     tokenType: "Bearer",
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m"
   };

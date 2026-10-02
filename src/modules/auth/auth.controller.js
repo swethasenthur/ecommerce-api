@@ -3,6 +3,9 @@ import {
   loginUser,
   registerUser
 } from "./auth.service.js";
+import {
+  rotateRefreshToken
+} from "./refresh-token.service.js";
 export async function register(req, res, next) {
   try {
     const user = await registerUser({
@@ -39,6 +42,19 @@ export async function getMe(req, res, next) {
 
     return res.status(200).json({
       data: user
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+export async function refresh(req, res, next) {
+  try {
+    const result = await rotateRefreshToken(
+      req.body.refreshToken
+    );
+
+    return res.status(200).json({
+      data: result
     });
   } catch (error) {
     return next(error);

@@ -2,9 +2,10 @@ import { Router } from "express";
 import {
   getMe,
   login,
+  refresh,
   register
 } from "./auth.controller.js";
-import { validateLogin, validateRegister } from "./auth.validation.js";
+import { validateLogin, validateRefresh, validateRegister } from "./auth.validation.js";
 import { authenticate } from "./authenticate.js";
 import { requireRole } from "./authorize.js";
 const router = Router();
@@ -23,6 +24,11 @@ router.get(
   "/me",
   authenticate,
   getMe
+);
+router.post(
+  "/refresh",
+  validateRefresh,
+  refresh
 );
 router.get(
   "/admin-test",

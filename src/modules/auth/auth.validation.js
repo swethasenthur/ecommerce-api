@@ -54,3 +54,12 @@ export const validateLogin = [
 
   validateRequest
 ];
+export const validateRefresh = [
+  body("refreshToken")
+    .isString()
+    .withMessage("refreshToken must be a string")
+    .notEmpty()
+    .withMessage("refreshToken is required"),
+
+  validateRequest
+];
