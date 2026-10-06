@@ -180,3 +180,101 @@ CREATE INDEX IX_product_images_product_id
 CREATE INDEX IX_product_images_variant_id
     ON dbo.product_images(variant_id);
 GO
+
+SET XACT_ABORT ON;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    /*
+      1. Drop the old product-to-category foreign key.
+    */
+    IF EXISTS
+    (
+        SELECT 1
+        FROM sys.foreign_keys
+        WHERE name = N'FK_products_categories'
+          AND parent_object_id = OBJECT_ID(N'dbo.products')
+    )
+    BEGIN
+        ALTER TABLE dbo.products
+        DROP CONSTRAINT FK_products_categories;
+    END;
+
+    /*
+      2. Drop the old products.category_id index.
+    */
+    IF EXISTS
+    (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = N'IX_products_category_id'
+          AND object_id = OBJECT_ID(N'dbo.products')
+    )
+    BEGIN
+        DROP INDEX IX_products_category_id
+        ON dbo.products;
+    END;
+
+    /*
+      3. Remove the old single-category column.
+    */
+    IF COL_LENGTH(N'dbo.products', N'category_id') IS NOT NULL
+    BEGIN
+        ALTER TABLE dbo.products
+        DROP COLUMN category_id;
+    END;
+
+    /*
+      4. Create an index on product_categories.category_id.
+      The composite primary key usually indexes:
+        (product_id, category_id)
+      This additional index improves category-to-product lookups.
+    */
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = N'IX_product_categories_category_id'
+          AND object_id = OBJECT_ID(N'dbo.product_categories')
+    )
+    BEGIN
+        CREATE NONCLUSTERED INDEX IX_product_categories_category_id
+        ON dbo.product_categories(category_id);
+    END;
+
+    /*
+      5. Create an index on product_categories.product_id
+      only if the existing primary key does not already begin with product_id.
+
+      If the primary key is:
+        (product_id, category_id)
+
+      this separate index is not required for normal product lookups.
+    */
+
+    /*
+      6. Recreate or confirm the categories.parent_id index.
+    */
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = N'IX_categories_parent_id'
+          AND object_id = OBJECT_ID(N'dbo.categories')
+    )
+    BEGIN
+        CREATE NONCLUSTERED INDEX IX_categories_parent_id
+        ON dbo.categories(parent_id);
+    END;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0
+    BEGIN
+        ROLLBACK TRANSACTION;
+    END;
+
+    THROW;
+END CATCH;

@@ -27,16 +27,16 @@ model addresses {
 }
 
 model categories {
-  id               String       @id(map: "PK_categories") @default(dbgenerated("newsequentialid()"), map: "DF__categories__id__35BCFE0A") @db.UniqueIdentifier
-  name             String       @db.NVarChar(150)
-  slug             String       @unique(map: "UQ_categories_slug") @db.NVarChar(180)
-  description      String?      @db.NVarChar(500)
-  parent_id        String?      @db.UniqueIdentifier
-  created_at       DateTime     @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_created_at")
-  updated_at       DateTime     @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_updated_at")
-  categories       categories?  @relation("categoriesTocategories", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_categories_parent")
-  other_categories categories[] @relation("categoriesTocategories")
-  products         products[]
+  id                 String               @id(map: "PK_categories") @default(dbgenerated("newsequentialid()"), map: "DF__categories__id__35BCFE0A") @db.UniqueIdentifier
+  name               String               @db.NVarChar(150)
+  slug               String               @unique(map: "UQ_categories_slug") @db.NVarChar(180)
+  description        String?              @db.NVarChar(500)
+  parent_id          String?              @db.UniqueIdentifier
+  created_at         DateTime             @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_created_at")
+  updated_at         DateTime             @default(dbgenerated("sysutcdatetime()"), map: "DF_categories_updated_at")
+  categories         categories?          @relation("categoriesTocategories", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_categories_parent")
+  other_categories   categories[]         @relation("categoriesTocategories")
+  product_categories product_categories[]
 
   @@index([parent_id], map: "IX_categories_parent_id")
 }
@@ -74,21 +74,19 @@ model product_variants {
 }
 
 model products {
-  id               String             @id(map: "PK_products") @default(dbgenerated("newsequentialid()"), map: "DF__products__id__3C69FB99") @db.UniqueIdentifier
-  category_id      String             @db.UniqueIdentifier
-  created_by_id    String             @db.UniqueIdentifier
-  name             String             @db.NVarChar(200)
-  slug             String             @unique(map: "UQ_products_slug") @db.NVarChar(220)
-  description      String?            @db.NVarChar(Max)
-  status           String             @default("DRAFT", map: "DF_products_status") @db.NVarChar(20)
-  created_at       DateTime           @default(dbgenerated("sysutcdatetime()"), map: "DF_products_created_at")
-  updated_at       DateTime           @default(dbgenerated("sysutcdatetime()"), map: "DF_products_updated_at")
-  product_images   product_images[]
-  product_variants product_variants[]
-  categories       categories         @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "FK_products_categories")
-  users            users              @relation(fields: [created_by_id], references: [id], onUpdate: NoAction, map: "FK_products_users")
+  id                 String               @id(map: "PK_products") @default(dbgenerated("newsequentialid()"), map: "DF__products__id__3C69FB99") @db.UniqueIdentifier
+  created_by_id      String               @db.UniqueIdentifier
+  name               String               @db.NVarChar(200)
+  slug               String               @unique(map: "UQ_products_slug") @db.NVarChar(220)
+  description        String?              @db.NVarChar(Max)
+  status             String               @default("DRAFT", map: "DF_products_status") @db.NVarChar(20)
+  created_at         DateTime             @default(dbgenerated("sysutcdatetime()"), map: "DF_products_created_at")
+  updated_at         DateTime             @default(dbgenerated("sysutcdatetime()"), map: "DF_products_updated_at")
+  product_categories product_categories[]
+  product_images     product_images[]
+  product_variants   product_variants[]
+  users              users                @relation(fields: [created_by_id], references: [id], onUpdate: NoAction, map: "FK_products_users")
 
-  @@index([category_id], map: "IX_products_category_id")
   @@index([created_by_id], map: "IX_products_created_by_id")
   @@index([status], map: "IX_products_status")
 }
@@ -125,4 +123,15 @@ model auth_sessions {
   @@index([expires_at], map: "IX_auth_sessions_expires_at")
   @@index([family_id], map: "IX_auth_sessions_family_id")
   @@index([user_id], map: "IX_auth_sessions_user_id")
+}
+
+model product_categories {
+  product_id  String     @db.UniqueIdentifier
+  category_id String     @db.UniqueIdentifier
+  created_at  DateTime   @default(dbgenerated("sysutcdatetime()"), map: "DF_product_categories_created_at")
+  categories  categories @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "FK_product_categories_categories")
+  products    products   @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_product_categories_products")
+
+  @@id([product_id, category_id], map: "PK_product_categories")
+  @@index([category_id], map: "IX_product_categories_category_id")
 }
