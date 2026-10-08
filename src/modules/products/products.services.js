@@ -79,34 +79,6 @@ function createApplicationError(statusCode, message) {
     return error;
 }
 
-export async function listProducts({
-    page = 1,
-    pageSize = 20,
-
-}) {
-    const skip = (page - 1) * pageSize;
-    const [products, total] = await Promise.all([
-        productRepository.findProducts({
-            skip,
-            take: pageSize,
-
-        }),
-        productRepository.countProducts()
-    ]);
-
-    return {
-        data: products.map((product) =>
-            toProductResponse(product)
-        ),
-        pagination: {
-            page,
-            pageSize,
-            total,
-            totalPages: Math.ceil(total / pageSize)
-        }
-    };
-}
-
 const validateBusinessRules = async ({
     data,
     authenticatedUserId,
@@ -220,7 +192,143 @@ const getProductById = async (id) => {
 
     return toProductResponse(product);
 };
+const listProducts = async ({
+    page = 1,
+    limit = 20,
+    status,
+    search,
+}) => {
+    const skip = (page - 1) * limit;
+
+    const result = await productRepository.findProducts({
+        skip,
+        take: Number(limit),
+        status,
+        search,
+    });
+
+    const totalPages =
+        result.total === 0
+            ? 0
+            : Math.ceil(result.total / limit);
+
+    return {
+        data: result.products.map(toProductResponse),
+
+        pagination: {
+            page,
+            limit,
+            totalItems: result.total,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
+        },
+    };
+};
+const updateProduct = async ({
+    productId,
+    input,
+    authenticatedUserId,
+}) => {
+    const existingProduct =
+        await productRepository.findProductById(productId);
+
+    if (!existingProduct) {
+        throw new AppError("Product not found", 404);
+    }
+
+    const data = {};
+
+    if (input.name !== undefined) {
+        data.name = input.name.trim();
+    }
+
+    if (input.slug !== undefined) {
+        const normalizedSlug = input.slug
+            .trim()
+            .toLowerCase();
+
+        const productWithSlug =
+            await productRepository.findProductBySlug(
+                normalizedSlug
+            );
+
+        if (
+            productWithSlug &&
+            productWithSlug.id !== productId
+        ) {
+            throw new AppError(
+                "Product slug already exists",
+                409
+            );
+        }
+
+        data.slug = normalizedSlug;
+    }
+
+    if (input.description !== undefined) {
+        data.description = input.description
+            ? input.description.trim()
+            : null;
+    }
+
+    if (input.status !== undefined) {
+        data.status = input.status;
+    }
+
+    const shouldUpdateCategories =
+        Object.prototype.hasOwnProperty.call(
+            input,
+            "categoryIds"
+        );
+
+    let categoryIds = [];
+
+    if (shouldUpdateCategories) {
+        categoryIds = [
+            ...new Set(input.categoryIds),
+        ];
+
+        const categories =
+            await productRepository.findCategoriesByIds(
+                categoryIds
+            );
+
+        if (categories.length !== categoryIds.length) {
+            throw new AppError(
+                "One or more categories were not found",
+                404
+            );
+        }
+    }
+
+    const updatedProduct =
+        await productRepository.updateProduct({
+            productId,
+            data,
+            categoryIds,
+            shouldUpdateCategories,
+        });
+
+    return toProductResponse(updatedProduct);
+};
+const deleteProduct = async ({
+    productId,
+    authenticatedUserId,
+}) => {
+    const existingProduct =
+        await productRepository.findProductById(productId);
+
+    if (!existingProduct) {
+        throw new AppError("Product not found", 404);
+    }
+
+    await productRepository.deleteProduct(productId);
+};
 export default {
     createProduct,
-    getProductById
+    getProductById,
+    listProducts,
+    updateProduct,
+    deleteProduct
 };

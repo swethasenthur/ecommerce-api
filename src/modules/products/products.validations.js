@@ -1,6 +1,7 @@
 import {
     body,
     param,
+    query,
     validationResult,
 } from "express-validator";
 
@@ -245,7 +246,189 @@ const validateProductId = [
         next();
     },
 ];
+const validateProductListQuery = [
+    query("page")
+        .optional()
+        .default(1)
+        .isInt({ min: 1 })
+        .withMessage("page must be a positive integer")
+        .toInt(),
+
+    query("limit")
+        .optional()
+        .default(20)
+        .isInt({ min: 1, max: 100 })
+        .withMessage("limit must be between 1 and 100")
+        .toInt(),
+    query("status")
+        .optional()
+        .isIn(allowedStatuses)
+        .withMessage(
+            `status must be one of: ${allowedStatuses.join(", ")}`
+        ),
+
+    query("search")
+        .optional()
+        .isString()
+        .withMessage("search must be a string")
+        .trim()
+        .isLength({ min: 1, max: 100 })
+        .withMessage(
+            "search must contain between 1 and 100 characters"
+        ),
+    (req, res, next) => {
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: "Validation failed",
+                details: errors.array(),
+            });
+        }
+
+        next();
+    },
+];
+
+const validateUpdateProduct = [
+    body()
+        .custom((value) => {
+            if (!value || typeof value !== "object") {
+                throw new Error(
+                    "Request body must be an object"
+                );
+            }
+
+            const allowedFields = [
+                "name",
+                "slug",
+                "description",
+                "status",
+                "categoryIds",
+            ];
+
+            const submittedFields = Object.keys(value);
+
+            const unknownFields = submittedFields.filter(
+                (field) => !allowedFields.includes(field)
+            );
+
+            if (unknownFields.length > 0) {
+                throw new Error(
+                    `Unknown fields: ${unknownFields.join(", ")}`
+                );
+            }
+
+            if (submittedFields.length === 0) {
+                throw new Error(
+                    "At least one field is required for update"
+                );
+            }
+
+            return true;
+        }),
+
+    body("name")
+        .optional()
+        .isString()
+        .withMessage("name must be a string")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("name must not be empty")
+        .bail()
+        .isLength({ max: 200 })
+        .withMessage(
+            "name must not exceed 200 characters"
+        ),
+
+    body("slug")
+        .optional()
+        .isString()
+        .withMessage("slug must be a string")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+        .withMessage(
+            "slug must contain lowercase letters, numbers, and hyphens"
+        )
+        .isLength({ max: 220 })
+        .withMessage(
+            "slug must not exceed 220 characters"
+        ),
+
+    body("description")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("description must be a string")
+        .bail()
+        .isLength({ max: 4000 })
+        .withMessage(
+            "description must not exceed 4000 characters"
+        )
+        .trim(),
+
+    body("status")
+        .optional()
+        .isString()
+        .withMessage("status must be a string")
+        .bail()
+        .isIn(allowedStatuses)
+        .withMessage(
+            `status must be one of: ${allowedStatuses.join(", ")}`
+        ),
+
+    body("categoryIds")
+        .optional()
+        .isArray()
+        .withMessage("categoryIds must be an array")
+        .bail()
+        .custom((categoryIds) => {
+            const uniqueCategoryIds = new Set(categoryIds);
+
+            if (
+                uniqueCategoryIds.size !== categoryIds.length
+            ) {
+                throw new Error(
+                    "categoryIds must not contain duplicates"
+                );
+            }
+
+            const guidPattern =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+            for (const categoryId of categoryIds) {
+                if (
+                    typeof categoryId !== "string" ||
+                    !guidPattern.test(categoryId)
+                ) {
+                    throw new Error(
+                        "Every categoryId must be a valid GUID"
+                    );
+                }
+            }
+
+            return true;
+        }),
+
+    (req, res, next) => {
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: "Validation failed",
+                details: errors.array(),
+            });
+        }
+
+        next();
+    },
+];
+
 export {
     validateCreateProduct,
-    validateProductId
+    validateProductId,
+    validateProductListQuery,
+    validateUpdateProduct
 };

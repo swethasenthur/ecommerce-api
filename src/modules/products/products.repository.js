@@ -142,7 +142,155 @@ const createProduct = async ({
         include: productInclude,
     });
 };
+const findProducts = async ({
+    skip,
+    take,
+    status,
+    search,
+}) => {
+    const where = {
+        ...(status
+            ? {
+                status,
+            }
+            : {}),
 
+        ...(search
+            ? {
+                OR: [
+                    {
+                        name: {
+                            contains: search,
+                        },
+                    },
+                    {
+                        slug: {
+                            contains: search,
+                        },
+                    },
+                ],
+            }
+            : {}),
+    };
+
+    const [products, total] = await prisma.$transaction([
+        prisma.products.findMany({
+            where,
+            skip,
+            take,
+            orderBy: [
+                {
+                    created_at: "desc",
+                },
+                {
+                    id: "desc",
+                },
+            ],
+            include: {
+                product_categories: {
+                    include: {
+                        categories: true,
+                    },
+                },
+                product_variants: {
+                    include: {
+                        product_images: true,
+                    },
+                },
+                product_images: true,
+            },
+        }),
+
+        prisma.products.count({
+            where,
+        }),
+    ]);
+
+    return {
+        products,
+        total,
+    };
+};
+
+const updateProduct = async ({
+    productId,
+    data,
+    categoryIds,
+    shouldUpdateCategories,
+}) => {
+    return prisma.$transaction(async (tx) => {
+        const product = await tx.products.update({
+            where: {
+                id: productId,
+            },
+            data,
+        });
+
+        if (shouldUpdateCategories) {
+            await tx.product_categories.deleteMany({
+                where: {
+                    product_id: productId,
+                },
+            });
+
+            if (categoryIds.length > 0) {
+                await tx.product_categories.createMany({
+                    data: categoryIds.map((categoryId) => ({
+                        product_id: productId,
+                        category_id: categoryId,
+                    })),
+                    skipDuplicates: true,
+                });
+            }
+        }
+
+        return tx.products.findUnique({
+            where: {
+                id: productId,
+            },
+            include: {
+                product_categories: {
+                    include: {
+                        categories: true,
+                    },
+                },
+                product_variants: {
+                    include: {
+                        product_images: true,
+                    },
+                },
+                product_images: true,
+            },
+        });
+    });
+};
+const deleteProduct = async (productId) => {
+    return prisma.$transaction(async (tx) => {
+        await tx.product_categories.deleteMany({
+            where: {
+                product_id: productId,
+            },
+        });
+
+        await tx.product_images.deleteMany({
+            where: {
+                product_id: productId,
+            },
+        });
+
+        await tx.product_variants.deleteMany({
+            where: {
+                product_id: productId,
+            },
+        });
+
+        return tx.products.delete({
+            where: {
+                id: productId,
+            },
+        });
+    });
+};
 const productRepository = {
     findUserById,
     findProductBySlug,
@@ -150,6 +298,9 @@ const productRepository = {
     findProductById,
     findVariantsBySkus,
     createProduct,
+    findProducts,
+    updateProduct,
+    deleteProduct
 };
 
 export default productRepository;
